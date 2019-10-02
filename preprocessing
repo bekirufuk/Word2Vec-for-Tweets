@@ -1,0 +1,46 @@
+#You can use the column of the Pandas DataFrame that contains text of the tweets (or any other text it doesn't matter) as df parameter.
+#These functions will return a DataFrame that was preprocess by their specific purpose.
+#I used a DataFrame for input and also used apply() function because it is faster with large data.
+#For example: myData["text"] = remove_punc(myData["text"])
+import re, string, unicodedata
+import nltk
+
+#removes a string if it begis with "www." or "http" until there is a space character.
+def remove_url(df):
+    return df.apply(lambda x: re.sub(r"http\S+|www.\S+", "", x))
+
+
+#removes any punctuation suct as -> ".!'^+%&/()=?>£#${[]}\|;" but not underscore "_"
+#if you also want to remove underscore, just add "|_" to the end of the query string
+def remove_punc(df):
+    return df.apply(lambda x: re.sub(r"[^\w\s@+]|\+", "", x))
+
+
+#changes any number of digits with a single "#" character. For example: Hello 123 My42! -> Hello # My#!
+def remove_num(df):
+    return df.apply(lambda x: re.sub(r"\d+", "#", x))
+
+
+#removes a piece string that starts with "@" character until there is a space 
+def remove_mentions(df):
+    return df.apply(lambda x: re.sub(r"@\S+", "", x))
+
+
+#removes repeatitive characters if there are more than 2 repeatition.
+#For example: "hey heey heeey heeeeey heeeeeeeeey good" -> "hey heey heey heey heey good"
+def remove_repeat(df):
+    pattern = re.compile(r"(.)\1{2,}", re.DOTALL)
+    return df.apply(lambda x: pattern.sub(r"\1\1", x))
+
+#removes all more than single spaces
+def stabilize(df):
+    return df.apply(lambda x: re.sub(r"\s+", " ", x))
+
+
+#this one is really just for the easy use of apply function with DataFrame
+def get_low(df):
+    return df.apply(lambda x: x.lower())
+
+#one function to rule them all :)
+def nltk_tokenize(df):
+    return df.apply(lambda x: nltk.word_tokenize(df))
