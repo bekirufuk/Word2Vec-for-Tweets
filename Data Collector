@@ -1,0 +1,133 @@
+import tweepy
+import pandas as pd
+import time
+import sys
+
+
+def login(key, secret):
+    auth = tweepy.AppAuthHandler(key, secret)
+    api = tweepy.API(auth, wait_on_rate_limit=False, wait_on_rate_limit_notify=False)
+    if not api:
+        return "Can't Authenticate"
+    else:
+        return api
+
+
+def limit_handler(m):
+    print("Rate limit reached. Sleeping for {0} minutes. Oh Jeez!".format(m))
+    for i in range(m):
+        time.sleep(60)
+        print("It's been {0} minutes since darkness started.".format(i + 1))
+
+
+def collect_tweets(user, maxTweetPerUser, api):
+    print("Collecting Tweets for User: {0} -----------------------------------------------------".format(user))
+    page = 1
+    tweets = api.user_timeline(screen_name=user, tweet_mode="extended", count="200", exclude_replies="true",
+                               include_rts="false", page=page)
+    previousPage = len(tweets)
+    print("{0} tweets from page {1}".format(len(tweets), page))
+    while len(tweets) < maxTweetPerUser:
+        try:
+            page = page + 1
+            tweets = tweets + api.user_timeline(screen_name=user, tweet_mode="extended", count="200",
+                                                exclude_replies="true", include_rts="false", page=page)
+            if tweets and len(tweets) != previousPage:
+                print("{0} tweets from page {1}".format(len(tweets), page))
+                previousPage = len(tweets)
+            else:
+                print ("Seems there are no more organic tweets. We are stopping there. Jeez!")
+                break
+        except tweepy.TweepError as e:
+            print(e)
+            continue
+        except tweepy.RateLimitError:
+            limit_handler(15)
+            continue
+    text = [[tweet.display_text_range[1], tweet.full_text, tweet.favorite_count, tweet.retweet_count] for tweet in
+            tweets]
+    user_df = pd.DataFrame(data=text)
+    user_df.columns = ["len", "text", "fav", "ret"]
+    user_df['score'] = user_df['fav'] + user_df['ret']
+    user_df = user_df.drop(['ret', 'fav'], axis=1)
+    user_df.to_csv(user + "_tweets.csv")
+    print("DONE! {0} tweets collected from {1}".format(len(user_df), user))
+    return user_df
+
+
+def collect_followers(user, folls_count, api):
+    # collect followers of the user
+    p = 2  # count of page, starts from 2 because first one is outed from the loop
+    folls = api.followers(user, count=200, skip_status=True, include_user_entities=False, page=1)
+    print("Collecting page {0}..".format(1))
+    while len(folls) < folls_count:
+        try:
+            folls = folls + api.followers(user, count=200, skip_status=True, include_user_entities=False, page=p)
+            print("Collecting page {0}..".format(p))
+            print("total number of collected followers: {0}".format(len(folls)))
+            p = p + 1
+        except tweepy.RateLimitError:
+            limit_handler(15)
+            continue
+        except tweepy.TweepError as e:
+            print(e)
+            break
+    print("DONE! {0} followers in the pocket".format(len(folls)))
+    text_foll = [[foll.screen_name] for foll in folls]
+    foll_df = pd.DataFrame(data=text_foll)
+    foll_df.columns = ["name"]
+    foll_df.to_csv(user + "_followers.csv")
+    return foll_df
+
+
+def collect_favs_of_folls(user, api):
+    try:
+        users_df = pd.read_csv(user + "_followers.csv")
+    except:
+        print(user + "_followers.csv can not be found!")
+        sys.exit(1)
+    # collect favorited tweets of followers of the user
+    print("Total number of users: {0}".format(len(users_df)))
+    userCounter = 0
+    started = False
+    
+    #this mess below is just for controlling locked account error when beginig. Open for improvements :)
+    while started == False:
+        try:
+            favs = api.favorites(users_df.at[x, 'name'], count=200, tweet_mode="extended")
+            started = True
+        except tweepy.RateLimitError as e:
+            limit_handler(15)
+            continue
+        except tweepy.TweepError as e:
+            if str(e) == "Not authorized.":
+                print("XXXXX NOT AUTHORIZED XXXXX")
+                userCounter += 1
+                continue
+    for i in users_df[userCounter+1:].index:
+        try:
+            favs = favs + api.favorites(users_df.at[i, 'name'], count=200, tweet_mode="extended")
+            print("Collecting user {0}".format(i))
+        except tweepy.RateLimitError as e:
+            limit_handler(15)
+            continue
+        except tweepy.TweepError as e:
+            if str(e) == "Not authorized.":
+                print("XXXXX NOT AUTHORIZED XXXXX")
+                continue
+            else:
+                print(str(e))
+                break
+        except e:
+            print(e)
+            sys.exit(1)
+    print("DONE! {0} favorited tweets in the pocket".format(len(favs)))
+    text = [[fav.full_text, fav.lang] for fav in
+            favs]
+    fav_df = pd.DataFrame(data=text)
+    fav_df.columns = ["text", "lang"]
+    fav_df = fav_df[fav_df["lang"] == "en"]
+    fav_df = fav_df.drop(['lang'], axis=1)
+    print("We are left with {0} favorited tweet after language check".format(len(fav_df)))
+    fav_df.to_csv(user + "_folls_favs.csv")
+    return fav_df
