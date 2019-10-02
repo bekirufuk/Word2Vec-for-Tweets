@@ -4,6 +4,7 @@ import time
 import sys
 
 
+#You can always make wait_on_rate_limit parameter True but using your own except handlers is more fun.
 def login(key, secret):
     auth = tweepy.AppAuthHandler(key, secret)
     api = tweepy.API(auth, wait_on_rate_limit=False, wait_on_rate_limit_notify=False)
@@ -20,14 +21,15 @@ def limit_handler(m):
         print("It's been {0} minutes since darkness started.".format(i + 1))
 
 
-def collect_tweets(user, maxTweetPerUser, api):
+#This one collects a users  non reply, non retweeted tweets.
+def collect_tweets(user, minTweetCount, api):
     print("Collecting Tweets for User: {0} -----------------------------------------------------".format(user))
     page = 1
     tweets = api.user_timeline(screen_name=user, tweet_mode="extended", count="200", exclude_replies="true",
                                include_rts="false", page=page)
     previousPage = len(tweets)
     print("{0} tweets from page {1}".format(len(tweets), page))
-    while len(tweets) < maxTweetPerUser:
+    while len(tweets) < minTweetCount:
         try:
             page = page + 1
             tweets = tweets + api.user_timeline(screen_name=user, tweet_mode="extended", count="200",
@@ -48,6 +50,7 @@ def collect_tweets(user, maxTweetPerUser, api):
             tweets]
     user_df = pd.DataFrame(data=text)
     user_df.columns = ["len", "text", "fav", "ret"]
+    #I sum up favorite and retweet counts to create a score for each tweet. A different sum weight for fav and rets might be used.
     user_df['score'] = user_df['fav'] + user_df['ret']
     user_df = user_df.drop(['ret', 'fav'], axis=1)
     user_df.to_csv(user + "_tweets.csv")
@@ -79,7 +82,7 @@ def collect_followers(user, folls_count, api):
     foll_df.to_csv(user + "_followers.csv")
     return foll_df
 
-
+#You first need a followers csv file for this one. You can create it using above function.
 def collect_favs_of_folls(user, api):
     try:
         users_df = pd.read_csv(user + "_followers.csv")
