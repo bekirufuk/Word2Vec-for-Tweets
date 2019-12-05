@@ -1,0 +1,3 @@
+TheTweetOfGod_tweets.csv -- 2063 not retweeted, not mentioned tweets of Twitter user "TheTweetOfGod". There are two colums being text and score (sum of like and retweet count)
+TheTweetOfGod_followers.csv -- 2000 followers of the account "TheTweetOfGod"
+TheTweetOfGod_folls_favs_extented3.csv -- 152886 tweets thats been liked by followers of the account "TheTweetOfGod". There is only one column being text.
